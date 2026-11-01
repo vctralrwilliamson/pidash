@@ -1,0 +1,8 @@
+data/
+__pycache__/
+*.pyc
+*.tmp
+config.local.json
+.env
+.ruff_cache/
+dist/

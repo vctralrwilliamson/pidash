@@ -1,0 +1,12 @@
+line-length = 130
+
+[lint]
+# pycodestyle, pyflakes, bugbear, and bandit security rules
+select = ["E", "F", "W", "B", "S"]
+ignore = [
+  "E501",  # long lines are fine in this project
+  "S603", "S607",  # subprocess with fixed argument lists (arp-scan, nmap, espeak-ng) is intended
+  "S310",  # urlopen is only used for localhost and the ntfy.sh push URL
+  "S104",  # binding 0.0.0.0 is configurable through "bind" in config.json
+  "S108",  # no temp-file paths are used insecurely
+]

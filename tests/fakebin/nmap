@@ -1,0 +1,7 @@
+#!/bin/sh
+# Stand-in for nmap: reports open ports for known fake hosts.
+for ip; do :; done
+case "$ip" in
+  192.168.1.50) printf 'Host: %s ()\tPorts: 22/open/tcp//ssh///\n' "$ip" ;;
+  192.168.1.60) printf 'Host: %s ()\tPorts: 23/open/tcp//telnet///\n' "$ip" ;;
+esac

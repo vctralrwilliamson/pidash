@@ -1,0 +1,9 @@
+#!/bin/sh
+# Stand-in for arp-scan: prints a small fake network.
+cat <<OUT
+Interface: eth0, type: EN10MB
+192.168.1.1	f0:af:85:00:00:01	ARRIS Group, Inc.
+192.168.1.50	b8:97:5a:00:00:02	BIOSTAR Microtech Int'l Corp.
+192.168.1.60	80:64:7c:00:00:03	(Unknown)
+OUT
+if [ -n "${PIDASH_EXTRA:-}" ] && [ -f "$PIDASH_EXTRA" ]; then cat "$PIDASH_EXTRA"; fi

@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PiDash</title>
+<style>
+:root{
+  --bg:#070914; --panel:#0e1224; --line:#1d2340; --text:#dfe4ff; --muted:#8a91b8;
+  --ok:#3ddc97; --warn:#ffb547; --crit:#ff5d6c; --accent:#8f7cff; --cyan:#5ad1ff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button{font:inherit;color:inherit;background:#171c36;border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+#app{display:flex;flex-direction:column;height:100%;padding:14px 18px;gap:12px}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:.18em;font-size:20px}
+.brand span{font-weight:400;letter-spacing:.05em;color:var(--muted);font-size:13px;margin-left:8px}
+#clock{font-variant-numeric:tabular-nums;color:var(--muted)}
+#clock b{color:var(--text);font-size:22px;font-weight:600;margin-right:8px}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.tile .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+.tile .v{font-size:28px;font-weight:650;font-variant-numeric:tabular-nums}
+.tile .s{color:var(--muted);font-size:12px}
+.v.ok{color:var(--ok)} .v.warn{color:var(--warn)} .v.crit{color:var(--crit)}
+main{flex:1;min-height:0;display:grid;grid-template-columns:1.7fr 1fr;gap:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-height:0;display:flex;flex-direction:column}
+.panel h2{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+.scroll{overflow:auto;min-height:0;flex:1}
+aside{display:grid;grid-template-rows:auto 1fr;gap:12px;min-height:0}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:4px 6px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+td{padding:6px;border-bottom:1px solid #151a33;vertical-align:middle}
+tr.off td{opacity:.45}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#444a6b;margin-right:6px}
+.dot.on{background:var(--ok)}
+.lbl{cursor:pointer;border-bottom:1px dashed transparent}
+.lbl:hover{border-color:var(--muted)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--muted)}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:4px;margin:1px 2px 1px 0;background:#1a2042;color:var(--muted)}
+.tag.bad{background:#3a1520;color:var(--crit)}
+.tag.new{background:#3a2a10;color:var(--warn)}
+.acts button{padding:2px 7px;font-size:12px}
+.acts button.on{border-color:var(--ok);color:var(--ok)}
+ul{list-style:none;margin:0;padding:0}
+#servers li{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #151a33}
+#events li{padding:7px 0;border-bottom:1px solid #151a33;font-size:13.5px}
+#events li .t{color:var(--muted);font-size:12px;margin-right:6px}
+#events li.unread{border-left:3px solid var(--warn);padding-left:8px}
+#events li.crit.unread{border-left-color:var(--crit)}
+.sev{font-weight:650;margin-right:4px}
+.sev.warn{color:var(--warn)} .sev.crit{color:var(--crit)} .sev.info{color:var(--cyan)}
+.empty{color:var(--muted);font-size:13px;padding:8px 0}
+footer{color:var(--muted);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+#banner{display:none;background:#3a1520;border:1px solid var(--crit);color:#ffd0d5;padding:6px 12px;border-radius:8px}
+
+@media (max-width:820px){
+  .tiles{grid-template-columns:repeat(2,1fr)}
+  main{grid-template-columns:1fr}
+  .hide-sm{display:none}
+}
+
+/* -------- sleep screen -------- */
+#sleep{position:fixed;inset:0;background:#000;z-index:10;cursor:none}
+#sleep[hidden]{display:none}
+#sleep canvas{position:absolute;inset:0;width:100%;height:100%}
+#overlay{position:absolute;left:6%;top:9%;color:#eef0ff;text-shadow:0 2px 12px rgba(0,0,0,.8);transition:left 2s,top 2s}
+#overlay .time{font-size:min(16vw,150px);font-weight:200;line-height:1;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+#overlay .date{font-size:min(4vw,30px);font-weight:300;opacity:.85;margin-top:6px}
+#overlay .net{margin-top:18px;font-size:min(2.6vw,19px);opacity:.75;letter-spacing:.04em}
+#overlay .alert{margin-top:8px;font-size:min(2.6vw,19px);color:#ff8f99}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">PIDASH<span>home network monitor</span></div>
+    <div id="clock"></div>
+  </header>
+  <div id="banner"></div>
+  <section class="tiles">
+    <div class="tile"><div class="k">Devices online</div><div class="v" id="t-dev">–</div><div class="s" id="t-dev-s"></div></div>
+    <div class="tile"><div class="k">Unread alerts</div><div class="v" id="t-alert">–</div><div class="s" id="t-alert-s"></div></div>
+    <div class="tile"><div class="k">Servers</div><div class="v" id="t-srv">–</div><div class="s" id="t-srv-s"></div></div>
+    <div class="tile"><div class="k">Pi</div><div class="v" id="t-pi">–</div><div class="s" id="t-pi-s"></div></div>
+  </section>
+  <main>
+    <section class="panel">
+      <h2>Devices <span class="mono" id="scan-age"></span></h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Device</th><th>IP</th><th class="hide-sm">Maker / MAC</th><th class="hide-sm">Open ports</th><th></th></tr></thead>
+          <tbody id="devices"></tbody>
+        </table>
+      </div>
+    </section>
+    <aside>
+      <section class="panel"><h2>Servers</h2><ul id="servers"></ul></section>
+      <section class="panel"><h2>Alerts <button id="markread">Mark all read</button></h2><div class="scroll"><ul id="events"></ul></div></section>
+    </aside>
+  </main>
+  <footer><span id="netinfo"></span><span>Tap a device name to rename it · Trust = known device · Watch = alert if its server goes down</span></footer>
+</div>
+
+<div id="sleep" hidden>
+  <canvas id="sky"></canvas>
+  <canvas id="fx"></canvas>
+  <div id="overlay"><div class="time"></div><div class="date"></div><div class="net"></div><div class="alert"></div></div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const PORTS = {21:"FTP",22:"SSH",23:"Telnet",53:"DNS",80:"Web",135:"RPC",139:"NetBIOS",443:"HTTPS",445:"SMB",631:"Print",
+  1433:"MSSQL",1883:"MQTT",3000:"Web",3306:"MySQL",3389:"RDP",5000:"Web",5900:"VNC",6333:"Qdrant",6379:"Redis",
+  8080:"Web",8096:"Jellyfin",8123:"HomeAsst",8443:"HTTPS",9000:"Web",9200:"Elastic",11434:"Ollama",27017:"Mongo",32400:"Plex"};
+
+let S = null, idleMs = 5 * 60000, lastActive = Date.now(), asleep = false;
+let wakeSeen = 0, lastCritId = 0;
+
+function ago(t){
+  if (!t) return "never";
+  const s = Math.max(0, Date.now()/1000 - t);
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.round(s/60) + " min ago";
+  if (s < 86400) return Math.round(s/3600) + " h ago";
+  return Math.round(s/86400) + " d ago";
+}
+function fmtTime(t){ return new Date(t*1000).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}); }
+
+async function api(path, body){
+  const r = await fetch(path, body ? {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)} : {});
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+function render(){
+  if (!S) return;
+  const on = S.devices.filter(d => d.online);
+  const untrusted = on.filter(d => !d.trusted).length;
+  $("t-dev").textContent = on.length;
+  $("t-dev-s").textContent = `${S.devices.length} known` + (untrusted ? ` · ${untrusted} untrusted` : "");
+  const crit = S.events.filter(e => !e.read && e.sev === "crit").length;
+  $("t-alert").textContent = S.unread;
+  $("t-alert").className = "v " + (crit ? "crit" : S.unread ? "warn" : "ok");
+  $("t-alert-s").textContent = crit ? `${crit} critical` : S.unread ? "review below" : "all clear";
+  const up = S.servers.filter(s => s.up).length;
+  $("t-srv").textContent = S.servers.length ? `${up}/${S.servers.length}` : "0";
+  $("t-srv").className = "v " + (!S.servers.length ? "" : up === S.servers.length ? "ok" : "crit");
+  $("t-srv-s").textContent = S.servers.length ? (up === S.servers.length ? "all online" : `${S.servers.length-up} offline`) : "none found yet";
+  const pi = S.pi || {};
+  $("t-pi").textContent = pi.temp_c != null ? Math.round(pi.temp_c) + "°C" : "–";
+  $("t-pi").className = "v " + (pi.temp_c > 75 ? "crit" : pi.temp_c > 65 ? "warn" : "ok");
+  $("t-pi-s").textContent = [pi.mem_pct != null && `RAM ${pi.mem_pct}%`, pi.load != null && `load ${pi.load}`, pi.uptime_h != null && `up ${pi.uptime_h} h`].filter(Boolean).join(" · ");
+
+  $("scan-age").textContent = "scanned " + ago(S.last_scan);
+  const b = $("banner");
+  if (S.scan_error){ b.style.display = "block"; b.textContent = S.scan_error; } else b.style.display = "none";
+
+  $("devices").innerHTML = S.devices.map(d => {
+    const ports = (d.ports||[]).map(p => `<span class="tag ${d.risky.includes(p)?"bad":""}">${p}${PORTS[p]?" "+PORTS[p]:""}</span>`).join("")
+      || `<span class="mono">${d.ports_scanned ? "none" : "pending"}</span>`;
+    return `<tr class="${d.online?"":"off"}">
+      <td><span class="dot ${d.online?"on":""}"></span><span class="lbl" data-mac="${esc(d.mac)}">${esc(d.label)}</span>
+        ${d.trusted ? "" : '<span class="tag new">new</span>'}${d.random ? '<span class="tag">private MAC</span>' : ""}</td>
+      <td class="mono">${esc(d.ip)}</td>
+      <td class="hide-sm"><div>${esc(d.vendor || "—")}</div><div class="mono">${esc(d.mac)}</div></td>
+      <td class="hide-sm">${ports}</td>
+      <td class="acts"><button data-act="trusted" data-mac="${esc(d.mac)}" class="${d.trusted?"on":""}">${d.trusted?"Trusted":"Trust"}</button>
+        ${(d.ports||[]).length ? `<button data-act="watch" data-mac="${esc(d.mac)}" class="${d.watch?"on":""}">${d.watch?"Watching":"Watch"}</button>` : ""}</td>
+    </tr>`;
+  }).join("");
+
+  $("servers").innerHTML = S.servers.length ? S.servers.map(s => `<li>
+      <span><span class="dot ${s.up?"on":""}" style="${s.up?"":"background:var(--crit)"}"></span>${esc(s.name)}
+        <span class="mono">${esc(s.host)}</span><br><span class="mono">${esc(s.services.join(", "))}${s.alerts?" · watched":""}</span></span>
+      <span class="mono">${s.up?"up":"DOWN"} ${ago(s.since)}</span></li>`).join("")
+    : `<li class="empty">No servers yet. Devices with open server ports appear here after the hourly port scan.</li>`;
+
+  $("events").innerHTML = S.events.length ? S.events.map(e => `<li class="${e.sev} ${e.read||e.sev==="info"?"":"unread"}">
+      <span class="t">${fmtTime(e.t)}</span><span class="sev ${e.sev}">${e.sev==="crit"?"CRITICAL":e.sev==="warn"?"Alert":"Info"}</span>${esc(e.msg)}</li>`).join("")
+    : `<li class="empty">No alerts yet.</li>`;
+
+  $("netinfo").textContent = S.network.my_ip ? `Pi ${S.network.my_ip} on ${S.network.iface} · gateway ${S.network.gateway}` : "network unknown";
+  idleMs = (S.ui?.idle_sleep_min || 5) * 60000;
+  updateOverlay();
+}
+
+async function refresh(){
+  try {
+    S = await api("/api/status");
+    render();
+    if (S.wake > wakeSeen){ if (wakeSeen) wake(); wakeSeen = S.wake; }
+    const newestCrit = S.events.find(e => e.sev === "crit" && !e.read);
+    if (newestCrit && newestCrit.id > lastCritId){ if (lastCritId && asleep) wake(); lastCritId = newestCrit.id; }
+    if (!lastCritId) lastCritId = 1;
+  } catch (e) {
+    $("banner").style.display = "block";
+    $("banner").textContent = "Lost contact with the monitor service. Retrying…";
+  }
+}
+
+document.addEventListener("click", async ev => {
+  const t = ev.target;
+  if (t.dataset.act){
+    const d = S.devices.find(x => x.mac === t.dataset.mac);
+    await api("/api/device", {mac:d.mac, [t.dataset.act]: !d[t.dataset.act]});
+    refresh();
+  } else if (t.classList.contains("lbl")){
+    const d = S.devices.find(x => x.mac === t.dataset.mac);
+    const name = prompt("Name this device:", d.label);
+    if (name){ await api("/api/device", {mac:d.mac, label:name}); refresh(); }
+  } else if (t.id === "markread"){
+    await api("/api/read", {}); refresh();
+  }
+});
+
+function tickClock(){
+  const n = new Date();
+  $("clock").innerHTML = `<b>${n.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}</b>${n.toLocaleDateString([], {weekday:"long", month:"long", day:"numeric", year:"numeric"})}`;
+  if (asleep) updateOverlay();
+}
+
+/* ------------------------------------------------ sleep / galaxy */
+function activity(ev){
+  lastActive = Date.now();
+  if (asleep){ wake(); ev.preventDefault?.(); ev.stopPropagation?.(); }
+}
+["mousemove","mousedown","keydown","touchstart","wheel"].forEach(t => window.addEventListener(t, activity, {capture:true, passive:false}));
+
+function sleep(){
+  asleep = true;
+  $("sleep").hidden = false;
+  paintSky();
+  updateOverlay();
+  startFx();
+}
+function wake(){
+  asleep = false;
+  lastActive = Date.now();
+  $("sleep").hidden = true;
+  stopFx();
+}
+setInterval(() => { if (!asleep && Date.now() - lastActive > idleMs) sleep(); }, 5000);
+
+function updateOverlay(){
+  if (!asleep) return;
+  const n = new Date(), o = $("overlay");
+  o.querySelector(".time").textContent = n.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+  o.querySelector(".date").textContent = n.toLocaleDateString([], {weekday:"long", month:"long", day:"numeric", year:"numeric"});
+  if (S){
+    const on = S.devices.filter(d => d.online).length, up = S.servers.filter(s => s.up).length;
+    const srv = S.servers.length ? (up === S.servers.length ? "servers online" : `${S.servers.length-up} server${S.servers.length-up>1?"s":""} DOWN`) : "no servers";
+    o.querySelector(".net").textContent = `● ${on} devices online  ·  ${srv}  ·  ${S.network.my_ip || ""}`;
+    o.querySelector(".alert").textContent = S.unread ? `⚠ ${S.unread} unread alert${S.unread>1?"s":""}` : "";
+  }
+  // drift the text slowly so it never burns into the screen
+  const m = n.getMinutes();
+  o.style.left = (5 + (m * 7) % 40) + "%";
+  o.style.top = (7 + (m * 11) % 45) + "%";
+}
+
+function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+let horizon = [], W = 0, H = 0;
+function paintSky(){
+  const c = $("sky"), dpr = 1;  // dpr 1 keeps the Pi 3 fast
+  W = c.width = innerWidth * dpr; H = c.height = innerHeight * dpr;
+  $("fx").width = W; $("fx").height = H;
+  const g = c.getContext("2d");
+  const day = Math.floor(Date.now() / 864e5);
+  const R = rng(day * 9301 + 49297);          // a new sky each day
+  const gauss = () => { let u = 0, v = 0; while (!u) u = R(); while (!v) v = R(); return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v); };
+
+  // night gradient
+  let bg = g.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#02030a"); bg.addColorStop(.55, "#070a1d"); bg.addColorStop(.82, "#141436"); bg.addColorStop(1, "#1c1530");
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+
+  // milky way band across the sky
+  const ang = (-28 - R()*16) * Math.PI/180, cx = W*(.45 + R()*.1), cy = H*.48;
+  const dx = Math.cos(ang), dy = Math.sin(ang), nx = -dy, ny = dx, L = Math.hypot(W, H), bw = Math.min(W, H) * .13;
+  const along = t => [cx + dx*t, cy + dy*t];
+
+  g.globalCompositeOperation = "lighter";
+  const glows = ["rgba(120,95,210,0.055)", "rgba(80,120,220,0.05)", "rgba(235,160,120,0.045)", "rgba(200,110,170,0.04)"];
+  for (let i = 0; i < 90; i++){
+    const t = (R() - .5) * L, off = gauss() * bw * .5, [x, y] = along(t), r = bw * (.6 + R()*1.4);
+    const px = x + nx*off, py = y + ny*off, gr = g.createRadialGradient(px, py, 0, px, py, r);
+    gr.addColorStop(0, glows[i % glows.length]); gr.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = gr; g.fillRect(px - r, py - r, r*2, r*2);
+  }
+  // galactic core
+  { const [x, y] = along(L * (.08 + R()*.1)), r = bw * 2.2, gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, "rgba(255,215,170,0.22)"); gr.addColorStop(.4, "rgba(230,150,120,0.08)"); gr.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = gr; g.fillRect(x - r, y - r, r*2, r*2); }
+
+  // stars: dense in the band, sparse elsewhere
+  const star = (x, y, rad, a) => {
+    const hue = R(); g.fillStyle = hue < .15 ? `rgba(170,200,255,${a})` : hue < .25 ? `rgba(255,225,190,${a})` : `rgba(240,242,255,${a})`;
+    g.beginPath(); g.arc(x, y, rad, 0, 6.283); g.fill();
+  };
+  for (let i = 0; i < 5200; i++){
+    const t = (R() - .5) * L, off = gauss() * bw * .55, [x, y] = along(t);
+    star(x + nx*off, y + ny*off, .25 + R()*R()*1.1, .25 + R()*.65);
+  }
+  for (let i = 0; i < 1600; i++) star(R()*W, R()*H*.85, .25 + R()*R()*1.2, .2 + R()*.7);
+
+  // dark dust lane along the middle of the band
+  g.globalCompositeOperation = "source-over";
+  for (let i = 0; i < 120; i++){
+    const t = (R() - .5) * L * .8, off = (gauss()*.25 + .1) * bw, [x, y] = along(t), r = bw * (.15 + R()*.35);
+    const px = x + nx*off, py = y + ny*off, gr = g.createRadialGradient(px, py, 0, px, py, r);
+    gr.addColorStop(0, "rgba(4,4,12,0.35)"); gr.addColorStop(1, "rgba(4,4,12,0)");
+    g.fillStyle = gr; g.fillRect(px - r, py - r, r*2, r*2);
+  }
+
+  // glow on the horizon
+  const hz = g.createLinearGradient(0, H*.62, 0, H);
+  hz.addColorStop(0, "rgba(0,0,0,0)"); hz.addColorStop(.6, "rgba(90,60,140,0.18)"); hz.addColorStop(1, "rgba(40,120,150,0.12)");
+  g.fillStyle = hz; g.fillRect(0, H*.62, W, H*.38);
+
+  // mountain ridges (midpoint displacement)
+  const ridge = (base, rough, color) => {
+    let pts = [base + (R()-.5)*rough, base + (R()-.5)*rough], seg = 1, amp = rough;
+    for (let k = 0; k < 8; k++){
+      const next = [];
+      for (let i = 0; i < pts.length - 1; i++) next.push(pts[i], (pts[i] + pts[i+1]) / 2 + (R() - .5) * amp);
+      next.push(pts[pts.length-1]); pts = next; amp *= .55;
+    }
+    g.fillStyle = color; g.beginPath(); g.moveTo(0, H);
+    pts.forEach((y, i) => g.lineTo(i / (pts.length - 1) * W, y));
+    g.lineTo(W, H); g.closePath(); g.fill();
+    return pts;
+  };
+  ridge(H*.78, H*.22, "#0d0f24");
+  ridge(H*.86, H*.16, "#07081a");
+  horizon = ridge(H*.93, H*.08, "#020208");
+}
+
+let fxTimer = null, twinkles = [], meteor = null, nextMeteor = 0;
+function startFx(){
+  const R = Math.random;
+  twinkles = Array.from({length:110}, () => ({x:R()*W, y:R()*H*.7, r:.6 + R()*1.1, p:R()*6.28, s:.5 + R()*1.5}));
+  nextMeteor = Date.now() + 4000 + R()*8000;
+  const fx = $("fx").getContext("2d");
+  const frame = () => {
+    const t = Date.now() / 1000;
+    fx.clearRect(0, 0, W, H);
+    for (const s of twinkles){
+      const a = .25 + .75 * Math.abs(Math.sin(t * s.s + s.p));
+      fx.fillStyle = `rgba(235,240,255,${a.toFixed(2)})`;
+      fx.beginPath(); fx.arc(s.x, s.y, s.r, 0, 6.283); fx.fill();
+    }
+    if (!meteor && Date.now() > nextMeteor){
+      meteor = {x:W*(.2 + Math.random()*.7), y:H*Math.random()*.3, vx:-(6 + Math.random()*5), vy:3 + Math.random()*3, life:1};
+    }
+    if (meteor){
+      const m = meteor, tail = 14;
+      const gr = fx.createLinearGradient(m.x, m.y, m.x - m.vx*tail, m.y - m.vy*tail);
+      gr.addColorStop(0, `rgba(255,255,255,${m.life})`); gr.addColorStop(1, "rgba(255,255,255,0)");
+      fx.strokeStyle = gr; fx.lineWidth = 1.6;
+      fx.beginPath(); fx.moveTo(m.x, m.y); fx.lineTo(m.x - m.vx*tail, m.y - m.vy*tail); fx.stroke();
+      m.x += m.vx * 2; m.y += m.vy * 2; m.life -= .025;
+      if (m.life <= 0){ meteor = null; nextMeteor = Date.now() + 8000 + Math.random()*20000; }
+    }
+    fxTimer = setTimeout(() => requestAnimationFrame(frame), 70);   // ~14 fps, light on the Pi 3
+  };
+  frame();
+}
+function stopFx(){ clearTimeout(fxTimer); fxTimer = null; meteor = null; }
+addEventListener("resize", () => { if (asleep){ paintSky(); startFx(); } });
+
+tickClock(); setInterval(tickClock, 15000);
+refresh(); setInterval(refresh, 10000);
+if (location.hash === "#sleep") setTimeout(sleep, 500);
+</script>
+</body>
+</html>

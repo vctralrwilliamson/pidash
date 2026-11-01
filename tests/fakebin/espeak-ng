@@ -1,0 +1,3 @@
+#!/bin/sh
+# Stand-in for espeak-ng: records what would have been spoken.
+echo "$*" >> "${PIDASH_SPOKEN:-/dev/null}"

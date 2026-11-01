@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # Keep the GitHub Actions used by CI up to date with security fixes.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
